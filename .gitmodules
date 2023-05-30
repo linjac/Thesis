@@ -1,0 +1,3 @@
+[submodule "data/MeshRIR/MeshRIR"]
+	path = data/MeshRIR/MeshRIR
+	url = https://github.com/sh01k/MeshRIR

@@ -142,3 +142,18 @@ def draw_sudoku(x, logits=False):
 
 def customwarn(message, category, filename, lineno, file=None, line=None):
     sys.stdout.write(warnings.formatwarning(message, category, filename, lineno))
+    
+def resample_waveform(waveform, sample_rate, resample_rate):
+    resampled_waveform = F.resample(
+        waveform,
+        sample_rate,
+        resample_rate,
+        lowpass_filter_width=16,
+        rolloff=0.85,
+        resampling_method="sinc_interp_kaiser",
+        beta=8.555504641634386,
+    )
+
+    plot_sweep(resampled_waveform, resample_rate, title="Resampled Waveform")
+    Audio(resampled_waveform.np()[0], rate=resample_rate)
+    return resampled_waveform

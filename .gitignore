@@ -1,0 +1,4 @@
+# ignore MeshRIR huge dataset
+data/MeshRIR/S32-M441_npy
+data/MeshRIR/S32-M441_npy.zip
+data/MeshRIR/*.npy
