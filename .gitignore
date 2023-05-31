@@ -2,3 +2,8 @@
 data/MeshRIR/S32-M441_npy
 data/MeshRIR/S32-M441_npy.zip
 data/MeshRIR/*.npy
+
+data/Motus/best_of.zip
+
+01_Conv1D/1s_cnn01.pth
+01_Conv1D/1s_cnn01_L1.pth

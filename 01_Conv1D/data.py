@@ -35,7 +35,7 @@ class MotusDataset_best_of(Dataset):
     sample_rate = 48000
     ir_len = 0
     
-    def __init__(self, root, train=None, cutoff=0.05, num_tail_samples=None, spectrogram=False, resample=None):
+    def __init__(self, root, train=None, cutoff=0.05, num_tail_samples=None, resample=None):
         """
         INPUTS
             train: bool - generate train set or test set
@@ -64,7 +64,7 @@ class MotusDataset_best_of(Dataset):
 #         temp_head = []
 #         temp_tail = []
 #         for filename in os.listdir(folder):
-#             fs, wav = wavfile.read(os.path.join(folder, filename))
+#             fs, wav = wavfile.read(os.path.join(foder, filename))
 #             temp_head.append(torch.from_numpy(wav[:cutoff_idx,0].T/byte_scale))
 #             temp_tail.append(torch.from_numpy(wav[cutoff_idx:tail_idx_end,0].T/byte_scale))
 #         # stack extracted waveform tensors
@@ -110,8 +110,81 @@ class MotusDataset_best_of(Dataset):
 #             y_mag, y_phase, y_if = tf_transformer(self.y)
 #             self.y = torch.stack([y_mag,y_phase])
 
-        self.pairs = None
-        self._preprocess(train)
+        self.pairs = self._make_pairs()
+        if train!=None:
+            self._preprocess(train)
+
+    def _preprocess(self, train):
+        train_pairs, test_pairs = train_test_split(self.pairs, test_size=0.2, random_state=1, shuffle=True)
+        self.pairs = train_pairs if train else test_pairs  
+        
+    def __len__(self):
+        return len(self.pairs)   
+    
+    def __getitem__(self, idx):
+        return self.pairs[idx]
+
+    def _make_pairs(self):
+        if self.spectrogram:
+            cutoff_idx = round(self.cutoff*self.sample_rate) 
+            x, y = splot
+        else:
+            cutoff_idx = round(self.cutoff*self.sample_rate) 
+            x = self.data[:,:cutoff_idx]
+            y = self.data[:,cutoff_idx:]
+#         if self.x.dim()==2:
+#             self.x = self.x.view(self.x.shape[0],-1,self.x.shape[1])
+#             self.y = self.y.view(self.y.shape[0],-1,self.y.shape[1])
+        return list(zip(x, y))
+
+class MotusDataset_best_of_spectrogram(Dataset):
+    sample_rate = 48000
+    
+    def __init__(self, root, train=None, split=0.05, cutoff=None, complex_valued=True, resample=None, fft_size=1024):
+        """
+        INPUTS
+            train: bool - generate train set or test set
+            split: length of head in seconds
+            cutoff: total length of IR in seconds
+            spectrogram: bool - generate spectrogram representation
+            resample: resample audio
+        """
+        self.root = root
+        self._folder = folder = os.path.join(root, 'Motus/best_of/sh_rirs')
+        self.split = split
+        self.cutoff = cutoff
+        
+        # Read, normalize, and resample data
+        if cutoff!=None:  # cutoff: length of tail in samples
+            tail_end_idx = round(cutoff*self.sample_rate)
+        else:
+            tail_end_idx = None
+        temp = []
+        
+        for filename in os.listdir(folder):
+            fs, wav = wavfile.read(os.path.join(folder, filename))
+            temp.append(torch.from_numpy(wav[:tail_end_idx,0].T/byte_scale))
+        self.data = torch.stack(temp,dim=0).float()
+        self.data = self.data/torch.max(torch.abs(self.data)) # scale entire dataset to between 1 and -1 ?? normalize before or after stft?
+        print(self.data.shape)
+        self.sample_rate = fs
+        if resample!=None:
+            self.data = resample_waveform(self.data, self.sample_rate, resample)
+            self.sample_rate = resample
+        
+        # STFT data
+        self.complex_valued = complex_valued
+        tf_transformer = Mag_phase_getter(fft_size)
+        if complex_valued:
+            self.data = tf_transformer.transform(self.data, complex_valued)
+        else:
+            x_mag, x_phase, x_if = tf_transformer.transform(self.data, complex_valued)
+            self.data = torch.stack([x_mag,x_phase], axis=1)
+
+        # Make pairs
+        self.pairs = self._make_pairs()
+        if train!=None:
+            self._preprocess(train)
 
     def _preprocess(self, train):
         pairs = self._make_pairs()
@@ -125,33 +198,35 @@ class MotusDataset_best_of(Dataset):
         return self.pairs[idx]
 
     def _make_pairs(self):
-        if self.spectrogram:
-            cutoff_idx = round(self.cutoff*self.sample_rate) 
-            x, y = splot
-            y = 
+        num_time_bins = self.data.shape[-1]
+        split_idx = round((self.split/self.cutoff)*num_time_bins)
+        if self.complex_valued:
+            if self.data.dim()==3:
+                self.data = self.data.view(self.data.shape[0],1,self.data.shape[1],self.data.shape[2])
+            x = self.data[:,:,:,:split_idx]
+            y = self.data[:,:,:,split_idx:]
         else:
-            cutoff_idx = round(self.cutoff*self.sample_rate) 
-            x = self.data[:,:cutoff_idx]
-            y = self.data[:,cutoff_idx:]
-#         if self.x.dim()==2:
-#             self.x = self.x.view(self.x.shape[0],-1,self.x.shape[1])
-#             self.y = self.y.view(self.y.shape[0],-1,self.y.shape[1])
+            print(self.data.shape)
+            x = self.data[:,:,:,:split_idx]
+            y = self.data[:,:,:,split_idx:]
         return list(zip(x, y))
-    
 
     
 class Mag_phase_getter():
     def __init__(self, fft_size=1024):
-        self.stft = T.Spectrogram(n_fft=fft_size, power=None, hop_length=n_fft//4)
+        self.stft = T.Spectrogram(n_fft=fft_size, power=None, hop_length=fft_size//4)
         
-    def transform(self, x):
+    def transform(self, x, complex_valued):
         x_stft = self.stft(x)
         
-        x_mag = torch.abs(x_stft)
-        x_phase = torch.angle(x_stft)
-        x_if = self._get_if(x_phase)
-        return x_mag, x_phase, x_if
-    
+        if complex_valued:
+            return x_stft
+        else:
+            x_mag = torch.abs(x_stft)
+            x_phase = torch.angle(x_stft)
+            x_if = self._get_instantaneous_frequency(x_phase)
+            return x_mag, x_phase, x_if
+
     def _get_instantaneous_frequency(self, arg):
         unwrapped_angle = np.unwrap(arg).astype(np.single)
         return np.concatenate([unwrapped_angle[:,:,0:1], np.diff(unwrapped_angle, n=1)], axis=-1)
