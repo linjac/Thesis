@@ -35,12 +35,12 @@ class MotusDataset_best_of(Dataset):
     sample_rate = 48000
     ir_len = 0
     
-    def __init__(self, root, train=None, cutoff=0.05, num_tail_samples=None, resample=None):
+    def __init__(self, root, train=None, split=0.05, cutoff=None, resample=None, plot=False):
         """
         INPUTS
             train: bool - generate train set or test set
-            cutoff: length of head in seconds
-            num_tail_samples: length of tail in samples
+            split: length of head in seconds
+            cutoff: length of entire IR
             spectrogram: bool - generate spectrogram representation
             resample: resample audio
         """
@@ -48,74 +48,44 @@ class MotusDataset_best_of(Dataset):
         self.root = root
         self._folder = folder = os.path.join(root, 'Motus/best_of/sh_rirs')
         print(folder)
-        self.spectrogram=spectrogram
-        self.cutoff = cutoff
 
-#         # cutoff: length of head in seconds
-#         cutoff_idx = round(cutoff*self.sample_rate)
+        # split: length of head in seconds
+        split_idx = round(split*self.sample_rate)
         
-        # num_tail_samples: length of tail in samples
-        if num_tail_samples!=None:
-            tail_idx_end = cutoff_idx + num_tail_samples
+        # num_end_idx: length of entire IR
+        if cutoff!=None: 
+            tail_end_idx = round(cutoff*self.sample_rate)
         else:
-            tail_idx_end = None
+            tail_end_idx = None
         
         # read waveform tensors
-#         temp_head = []
-#         temp_tail = []
-#         for filename in os.listdir(folder):
-#             fs, wav = wavfile.read(os.path.join(foder, filename))
-#             temp_head.append(torch.from_numpy(wav[:cutoff_idx,0].T/byte_scale))
-#             temp_tail.append(torch.from_numpy(wav[cutoff_idx:tail_idx_end,0].T/byte_scale))
-#         # stack extracted waveform tensors
-#         self.x = torch.stack(temp_head,dim=0).float()
-#         self.y = torch.stack(temp_tail,dim=0).float()
-
-        temp = []
+        temp_head = []
+        temp_tail = []
         for filename in os.listdir(folder):
             fs, wav = wavfile.read(os.path.join(folder, filename))
-            temp.append(torch.from_numpy(wav[:tail_idx_end,0].T/byte_scale))
-        self.data = torch.stack(temp,dim=0).float()
-        self.sample_rate = fs
-        
-        # scale entire dataset to between 1 and -1
-        scale_factor = torch.max(torch.abs(self.data))
-        self.data = self.data/scale_factor
-        
-        if resample!=None:
-            self.data = resample_waveform(self.data, self.sample_rate, resample)
-            self.sample_rate = resample
-        
-        if spectrogram:
-            tf_transformer = Mag_phase_getter(fft_size=1024)
-            x_mag, x_phase, x_if = tf_transformer(self.data)
-            self.data = torch.stack([x_mag,x_phase])
-        
-#         # scale entire dataset to between 1 and -1
-#         scale_factor = max(torch.max(torch.abs(self.x)) , torch.max(torch.abs(self.y)))
-#         self.x = self.x/scale_factor
-#         self.y = self.y/scale_factor
-        
-#         self.sample_rate = fs
+            temp_head.append(torch.from_numpy(wav[:split_idx,0].T/byte_scale))
+            temp_tail.append(torch.from_numpy(wav[split_idx:tail_end_idx,0].T/byte_scale))
+        self.x = torch.stack(temp_head,dim=0).float() # stack extracted waveform tensors
+        self.y = torch.stack(temp_tail,dim=0).float()
 
-#         if resample!=None:
-#             self.x = resample_waveform(self.x, self.sample_rate, resample)
-#             self.y = resample_waveform(self.y, self.sample_rate, resample)
-#             self.sample_rate = resample
+        scale_factor = max(torch.max(torch.abs(self.x)) , torch.max(torch.abs(self.y))) # scale entire dataset to between 1 and -1
+        self.x = self.x/scale_factor
+        self.y = self.y/scale_factor
         
-#         if spectrogram:
-#             tf_transformer = Mag_phase_getter(fft_size=1024)
-#             x_mag, x_phase, x_if = tf_transformer(self.x)
-#             self.x = torch.stack([x_mag,x_phase])
-#             y_mag, y_phase, y_if = tf_transformer(self.y)
-#             self.y = torch.stack([y_mag,y_phase])
+        self.sample_rate = fs
+
+        if resample!=None:
+            self.x = resample_waveform(self.x, self.sample_rate, resample, plot=plot)
+            self.y = resample_waveform(self.y, self.sample_rate, resample, plot=plot)
+            self.sample_rate = resample
 
         self.pairs = self._make_pairs()
         if train!=None:
             self._preprocess(train)
+        print(f'Dataset with {self.__len__()} samples. \nInput(channels, time_dim), output(...) shapes: {self.x.shape[1:]}, {self.y.shape[1:]}')
 
     def _preprocess(self, train):
-        train_pairs, test_pairs = train_test_split(self.pairs, test_size=0.2, random_state=1, shuffle=True)
+        train_pairs, test_pairs = train_test_split(self.pairs, test_size=0.9, random_state=1, shuffle=True)
         self.pairs = train_pairs if train else test_pairs  
         
     def __len__(self):
@@ -125,17 +95,10 @@ class MotusDataset_best_of(Dataset):
         return self.pairs[idx]
 
     def _make_pairs(self):
-        if self.spectrogram:
-            cutoff_idx = round(self.cutoff*self.sample_rate) 
-            x, y = splot
-        else:
-            cutoff_idx = round(self.cutoff*self.sample_rate) 
-            x = self.data[:,:cutoff_idx]
-            y = self.data[:,cutoff_idx:]
-#         if self.x.dim()==2:
-#             self.x = self.x.view(self.x.shape[0],-1,self.x.shape[1])
-#             self.y = self.y.view(self.y.shape[0],-1,self.y.shape[1])
-        return list(zip(x, y))
+        if self.x.dim()==2:
+            self.x = self.x.view(self.x.shape[0],-1,self.x.shape[1])
+            self.y = self.y.view(self.y.shape[0],-1,self.y.shape[1])
+        return list(zip(self.x, self.y))
 
 class MotusDataset_best_of_spectrogram(Dataset):
     sample_rate = 48000
@@ -300,7 +263,7 @@ def plot_sweep(
     plt.colorbar(cax)
     plt.show(block=True)
     
-def resample_waveform(waveform, sample_rate, resample_rate):
+def resample_waveform(waveform, sample_rate, resample_rate, plot=False):
     resampled_waveform = F.resample(
         waveform,
         sample_rate,
@@ -310,9 +273,30 @@ def resample_waveform(waveform, sample_rate, resample_rate):
         resampling_method="sinc_interp_kaiser",
         beta=8.555504641634386,
     )
-    print("Resampling waveform from ", sample_rate, " to ", resample_rate)
-    print(waveform[0, None].shape)
-    print(resampled_waveform[0, None].shape)
-    plot_sweep(waveform[0, None], sample_rate, title="Original Waveform")
-    plot_sweep(resampled_waveform[0, None], resample_rate, title="Resampled Waveform")
+    print("Resampling waveforms from ", sample_rate, " to ", resample_rate)
+    if plot:
+        print(waveform[0, None].shape)
+        print(resampled_waveform[0, None].shape)
+        plot_sweep(waveform[0, None], sample_rate, title="Original Waveform")
+        plot_sweep(resampled_waveform[0, None], resample_rate, title="Resampled Waveform")
     return resampled_waveform
+
+def plot_dataset_sample(trainset, dpi=150):
+    sample_head, sample_tail = trainset[0]
+
+    fs = trainset.sample_rate
+    time1 = np.linspace(0,sample_head.shape[-1]/fs, sample_head.shape[-1])
+    time2 = np.linspace(time1[-1], sample_tail.shape[-1]/fs+time1[-1], sample_tail.shape[-1])
+    
+    #Plot the data 
+    plt.rcParams['figure.dpi'] = dpi
+    plt.rcParams['savefig.dpi'] = dpi
+
+    fig, ax = plt.subplots(1)
+    ax.plot(time1, torch.flatten(sample_head), time2, torch.flatten(sample_tail), linewidth=1)
+    # ax.plot(time_scale, tgt_sample)
+    ax.set_title('Dataset sample')
+    ax.legend(['Input - IR Head', 'Output - IR Tail'])
+    # plt.xlim([0.1, 0.25])
+    # plt.savefig('test_matplotlib.png', bbox_inches="tight")
+    plt.show()
