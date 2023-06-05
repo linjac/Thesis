@@ -8,3 +8,4 @@ data/Motus/best_of.zip
 # 01_Conv1D/1s_cnn01.pth
 # 01_Conv1D/1s_cnn01_L1.pth
 01_Conv1D/*.pth
+01_Conv1D/output/*.pth
