@@ -281,7 +281,7 @@ def resample_waveform(waveform, sample_rate, resample_rate, plot=False):
         plot_sweep(resampled_waveform[0, None], resample_rate, title="Resampled Waveform")
     return resampled_waveform
 
-def plot_dataset_sample(trainset, idx=0 dpi=150):
+def plot_dataset_sample(trainset, idx=0, dpi=150):
     sample_head, sample_tail = trainset[idx]
 
     fs = trainset.sample_rate
