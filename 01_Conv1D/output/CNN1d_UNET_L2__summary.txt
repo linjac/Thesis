@@ -1,0 +1,49 @@
+CNN1d_UNET_L2
+Optimizer: torch.optim.Adam(cnn_model.parameters(), lr=0.0001)
+Loss: nn.MSELoss()
+Epochs: 50000
+=================================================================
+Layer (type:depth-idx)                   Param #
+=================================================================
+CNN1D_UNET                               --
+├─Downsample_block: 1-1                  --
+│    └─Conv1d: 2-1                       544
+│    └─LeakyReLU: 2-2                    --
+│    └─Identity: 2-3                     --
+│    └─Conv1d: 2-4                       3,104
+├─Downsample_block: 1-2                  --
+│    └─Conv1d: 2-5                       16,512
+│    └─LeakyReLU: 2-6                    --
+│    └─Identity: 2-7                     --
+│    └─Conv1d: 2-8                       49,280
+├─Downsample_block: 1-3                  --
+│    └─Conv1d: 2-9                       130,302
+│    └─LeakyReLU: 2-10                   --
+│    └─Identity: 2-11                    --
+│    └─Conv1d: 2-12                      193,802
+├─Conv1d: 1-4                            193,802
+├─Upsample_block: 1-5                    --
+│    └─ConvTranspose1d: 2-13             193,802
+│    └─Conv1d: 2-14                      97,664
+├─Upsample_block: 1-6                    --
+│    └─ConvTranspose1d: 2-15             49,280
+│    └─Conv1d: 2-16                      12,320
+├─Upsample_block: 1-7                    --
+│    └─ConvTranspose1d: 2-17             3,104
+│    └─Conv1d: 2-18                      3,104
+├─Sequential: 1-8                        --
+│    └─ConvTranspose1d: 2-19             16,416
+│    └─Conv1d: 2-20                      3,104
+│    └─ConvTranspose1d: 2-21             8,224
+│    └─Conv1d: 2-22                      3,104
+│    └─ConvTranspose1d: 2-23             8,224
+│    └─Conv1d: 2-24                      3,104
+│    └─ConvTranspose1d: 2-25             4,128
+│    └─Conv1d: 2-26                      3,104
+│    └─ConvTranspose1d: 2-27             4,128
+│    └─Conv1d: 2-28                      97
+=================================================================
+Total params: 1,000,253
+Trainable params: 1,000,253
+Non-trainable params: 0
+=================================================================
