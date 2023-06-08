@@ -1,0 +1,29 @@
+MLP0_L1
+Optimizer: torch.optim.Adam(cnn_model.parameters(), lr=0.0005)
+Loss: nn.L1Loss()
+Epochs: 50000
+Notes: The simplest MLP
+=================================================================
+Layer (type:depth-idx)                   Param #
+=================================================================
+MLP                                      --
+├─Sequential: 1-1                        --
+│    └─Linear: 2-1                       153,664
+│    └─LeakyReLU: 2-2                    --
+│    └─Linear: 2-3                       2,964,000
+=================================================================
+Total params: 3,117,664
+Trainable params: 3,117,664
+Non-trainable params: 0
+=================================================================
+
+class MLP(nn.Module):
+    def __init__(self, in_dim, out_dim, hidden_dim=64, negative_slope=0.01):
+        super(MLP,self).__init__()
+        
+        self.fcn = nn.Sequential(nn.Linear(in_dim, hidden_dim),
+                                 nn.LeakyReLU(negative_slope),
+                                 nn.Linear(hidden_dim, out_dim)
+                                )
+    def forward(self, x):
+        return self.fcn(x)
